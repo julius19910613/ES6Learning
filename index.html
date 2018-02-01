@@ -1,0 +1,474 @@
+<script src="jquery-3.3.1.min.js"></script>
+
+<script type="text/javascript">
+    const request_url = "https://strikingly-hangman.herokuapp.com/game/on";
+
+    //    dirctionaryArray = txtObj.split('\n');
+
+    // 保存符合某个长度的单词
+    var wordsMatchLength = [];
+    // 记录字母的出现频率
+    var letterFrequency = {};
+    // 上次猜错次数
+    var wrongNum = 0;
+    // 记录已猜过的单词
+    var lettersGuessed = '';
+    // 备用字母频率列表
+    var letterArr = ['E', 'T', 'A', 'O', 'I', 'N', 'S', 'H', 'R', 'D', 'L', 'U', 'C', 'M', 'F', 'W', 'Y', 'P', 'V', 'B', 'G', 'K', 'Q', 'J', 'X', 'Z'];
+
+    var letterMap = {}
+
+    const login_request = {
+        "playerId": "lifanchenjulius@hotmail.com",
+        "action": "startGame"
+    };
+
+    let session_id = "";
+
+    let getNum_request = {
+        "sessionId": session_id,
+        "action": "nextWord"
+    }
+
+    let guess_Num = {};
+
+    $(document).ready(function() {
+
+        // 根据传入字符串生成对应的正则对象
+        function generatePattern(word) {
+            var patternStr = '';
+            var starNum = 0;
+            for (var i = 0, len = word.length; i < len; i++) {
+                if (word[i] == '*') {
+                    starNum = starNum + 1;
+                } else {
+                    patternStr = patternStr + (starNum ? '\\w{' + starNum + '}' : '') + word[i];
+                    starNum = 0;
+                }
+            }
+            // 修正结尾的星号
+            patternStr = patternStr + (starNum ? '\\w{' + starNum + '}' : '');
+            return new RegExp(patternStr, 'i');
+        }
+
+        function filter(word, wrong, letter) {
+            var l = '',
+                frequency = 0;
+            let FrequencyOrder = 25;
+            let frequencyPosArray = {};
+            let maxFrequency = 0;
+            console.log("start");
+            // 第一次执行时，筛选出所有符合长度条件的单词
+            if (!wordsMatchLength.length) {
+                for (var i = 0, len = dirctionaryArray.length; i < len; i++) {
+                    if (dirctionaryArray[i].length === word.length) {
+                        wordsMatchLength.push(dirctionaryArray[i]);
+                    }
+                }
+            }
+            // 若上次猜错，筛去所有包含上次所猜字母的单词
+            if (wrong > wrongNum) {
+                for (var i = 0, len = wordsMatchLength.length; i < len; i++) {
+                    if (wordsMatchLength[i] &&
+                        (wordsMatchLength[i].indexOf(letter.toLowerCase()) > -1 || wordsMatchLength[i].indexOf(letter.toUpperCase()) > -1)) {
+                        wordsMatchLength.splice(i, 1);
+                        i--;
+                        len--;
+                    }
+                }
+                // 若上次猜对，对现有模式进行正则匹配，筛选出符合条件的单词
+            } else {
+                for (var i = 0, len = wordsMatchLength.length; i < len; i++) {
+                    if (wordsMatchLength[i] && !generatePattern(word).test(wordsMatchLength[i])) {
+                        wordsMatchLength.splice(i, 1);
+                        i--;
+                        len--;
+                    }
+                }
+            }
+
+            console.log(wordsMatchLength);
+            // 筛选完成后，对剩下字母的频率进行统计
+            for (var i = 0, len = wordsMatchLength.length; i < len; i++) {
+                for (var j = 0, innerLen = wordsMatchLength[i].length; j < innerLen; j++) {
+                    letterFrequency[wordsMatchLength[i][j].toLowerCase()] == undefined ?
+                        letterFrequency[wordsMatchLength[i][j].toLowerCase()] = 1 :
+                        letterFrequency[wordsMatchLength[i][j].toLowerCase()]++;
+                }
+            }
+            for (var key in letterFrequency) {
+                if (letterFrequency[key] >= frequency && lettersGuessed.indexOf(key) < 0) {
+                    frequency = letterFrequency[key];
+                    frequencyPosArray[key] = letterFrequency[key];
+                    l = key;
+                }
+            }
+
+            maxFrequency = letterFrequency[l];
+
+            //若最大数有两个及以上，选择频率表最高的词进行查询
+            for (let key in frequencyPosArray) {
+                if (letterFrequency[key] == maxFrequency && letterArr.indexOf(key.toUpperCase()) < FrequencyOrder) {
+                    FrequencyOrder = letterArr.indexOf(key.toUpperCase());
+                    l = key;
+                }
+            }
+
+            console.log(frequencyPosArray)
+            console.log('dict remaining: ' + wordsMatchLength.length + ' words');
+            console.log(l);
+            // 若单词不在词典中，根据备用频率表进行选择
+            if (!wordsMatchLength.length) {
+                for (var i = 0, len = letterArr.length; i < len; i++) {
+                    if (lettersGuessed.indexOf(letterArr[i]) < 0) {
+                        l = letterArr[i];
+                        break;
+                    }
+                }
+            }
+            lettersGuessed = lettersGuessed + l;
+            wrongNum = wrong;
+            letterFrequency = {};
+            FrequencyOrder = 25;
+            frequencyPosArray = {};
+            maxFrequency = 0;
+            return l;
+        }
+
+
+
+
+        function readDictionary() {
+            let txtObj = $.ajax({
+                url: "222.txt",
+                async: false
+            });
+            dirctionaryArray = txtObj.responseText.split('\n');
+        }
+
+        // var a = function() {
+        //     return new Promise(function(resolve, reject) {
+        //         // setTimeout(function() {
+        //         //     console.log('a')
+        //         //     resolve('a')
+        //         // }, 1000)
+
+        //         $.ajax({
+        //             url: request_url,
+        //             contentType: 'application/json',
+        //             async: false,
+        //             data: JSON.stringify(login_request),
+        //             type: "POST",
+        //             success: function(result) {
+
+        //                 session_id = result.sessionId;
+        //                 resolve(session_id);
+        //             }
+        //         });
+
+        //     })
+        // }
+
+        // var b = function(session_id) {
+        //     return new Promise(function(resolve, reject) {
+        //         // console.log('b')
+        //         // resolve(session_id + 'b')
+
+        //         let getNum_request = {
+        //             "sessionId": session_id,
+        //             "action": "nextWord"
+        //         }
+
+        //         $.ajax({
+        //             url: request_url,
+        //             contentType: 'application/json',
+        //             async: false,
+        //             data: JSON.stringify(getNum_request),
+        //             type: "POST",
+        //             success: function(result) {
+
+        //                 guess_Num = result;
+        //                 resolve(guess_Num);
+
+        //             }
+        //         });
+        //     })
+        // }
+
+
+
+        function startGame() {
+            $.ajax({
+                url: request_url,
+                contentType: 'application/json',
+                async: false,
+                data: JSON.stringify(login_request),
+                type: "POST",
+                success: function(result) {
+
+                    session_id = result.sessionId;
+                    setTimeout(
+                        function() {
+                            getWord(session_id);
+                        }, 0);
+
+                }
+            });
+        }
+
+        function getWord(session_id) {
+            // console.log('b')
+            // resolve(session_id + 'b')
+
+            let getNum_request = {
+                "sessionId": session_id,
+                "action": "nextWord"
+            }
+
+            $.ajax({
+                url: request_url,
+                contentType: 'application/json',
+                async: false,
+                data: JSON.stringify(getNum_request),
+                type: "POST",
+                success: function(data) {
+
+                    if (data.message && data.message === "No more word to guess.") {
+                        console.log("No more word to guess.");
+                    } else {
+
+                        wordsMatchLength = [];
+                        letterFrequency = {};
+                        wrongNum = 0;
+                        lettersGuessed = '';
+
+                        let originStr = data.data.word;
+                        session_id = data.sessionId;
+
+                        let originArray = new Array();
+
+                        let lastGuessChar = '';
+                        let guessChar = filter(originStr, wrongNum, lastGuessChar)
+
+
+
+                        setTimeout(
+                            function() {
+                                guessNumber(session_id, wrongNum, originStr, guessChar)
+                            }, 0);
+                    }
+
+//                    guess_Num = data;
+                },
+                error: function(data){
+                    if(data.message && data.message === "No more word to guess."){
+                        console.log(data);
+                        setTimeout(
+                            function() {
+                                getResult(session_id);
+                            }, 0);
+                    }
+                }
+
+            });
+
+        }
+
+
+
+
+
+        function guessNumber(session_id, wrongNum, originStr, guessChar) {
+            //            return new Promise(function(resolve, reject) {
+            function guess(session_id, wrongNum, originStr, guessChar) { //再加个函数包裹递归就不会影响Promise
+
+                let getNum_request = {
+                    "sessionId": session_id,
+                    "action": "guessWord",
+                    "guess": guessChar.toUpperCase()
+                };
+                $.ajax({
+                    url: request_url,
+                    contentType: 'application/json',
+                    async: false,
+                    data: JSON.stringify(getNum_request),
+                    type: "POST",
+                    success: function(result) {
+
+                        session_id = result.sessionId;
+                        let responseStr = result.data.word;
+
+                        originStr = analyzeResultStr(originStr, responseStr);
+
+                        if (originStr.indexOf("*") !== -1) {
+                            wrongNum = result.data.wrongGuessCountOfCurrentWord;
+                            guessChar = filter(originStr, wrongNum, guessChar);
+
+                            //猜错9次，立刻跳下一个词
+                            if (wrongNum >= 9) {
+                                console.log("skip to another");
+                                setTimeout(
+                                    function() {
+                                        getWord(session_id);
+                                    }, 0);
+                            } else {
+                                setTimeout(
+                                    function() {
+                                        guess(session_id, wrongNum, originStr, guessChar);
+                                    }, 0);
+                            }
+
+                        } else {
+
+                            setTimeout(
+                                function() {
+                                    getWord(session_id);
+                                }, 0);
+                        }
+                    }
+                });
+            }
+            setTimeout(
+                function() {
+                    guess(session_id, wrongNum, originStr, guessChar);
+                }, 0);
+            //           })
+        };
+
+
+        function getResult(session_Id){
+            let result_request = {
+                "sessionId": session_Id,
+                "action" : "getResult"
+            }
+
+            $.ajax({
+                url: request_url,
+                contentType: 'application/json',
+                async: false,
+                data: JSON.stringify(result_request),
+                type: "POST",
+                success: function(result) {
+
+                    session_id = result.sessionId;
+                    setTimeout(
+                        function() {
+                            getWord(session_id);
+                        }, 0);
+
+                }
+            });
+        }
+
+        function submitResult(session_Id){
+            let submit_request = {
+                "sessionId": session_Id,
+                "action" : "submitResult"
+            }
+
+            $.ajax({
+                url: request_url,
+                contentType: 'application/json',
+                async: false,
+                data: JSON.stringify(submit_request),
+                type: "POST",
+                success: function(result) {
+
+                    console.log(result);
+                }
+            });
+        }
+
+
+        function analyzeResultStr(originStr, responseStr) {
+            //完全一致，直接跳过检查
+            if (originStr === responseStr) {
+                return originStr;
+            } else {
+
+                if (responseStr.indexOf("*") === -1) {
+                    originStr = responseStr;
+                    return originStr;
+                } else {
+
+                    let originArray = originStr.split('');
+
+                    for (let i = 0; i < responseStr.length; i++) {
+                        if (responseStr[i] !== '*') {
+                            originArray.splice(i, 1, responseStr[i]);
+                        }
+                    }
+
+                    originStr = originArray.join('');
+                }
+
+
+            }
+
+            return originStr;
+        }
+
+        // // 组织函数队列
+        // function reduce(arr) {
+        //     var sequence = Promise.resolve()
+
+        //     arr.forEach(function(item) {
+        //         sequence = sequence.then(item)
+        //     })
+
+        //     return sequence
+        // }
+
+        setTimeout(
+            function() {
+                readDictionary();
+            }, 0);
+        setTimeout(function() {
+            startGame();
+        }, 0);
+
+
+
+
+
+        // 顺序执行函数队列
+        //     reduce([a, b])
+        //         .then(function(data) {
+
+        //             for (let i = 0; i < 79; i++) {
+        //                 let originStr = data.data.word;
+        //                 session_id = data.sessionId;
+
+        //                 let originArray = new Array();
+
+        //                 let lastGuessChar = '';
+        //                 let guessChar = filter(originStr, wrongNum, lastGuessChar)
+
+        //                 guessNumber(session_id, data.data.wrongGuessCountOfCurrentWord, originStr, guessChar);
+
+        //                 console.log(data) // abc
+
+
+        //             }
+
+
+        //         })
+        //         .catch(function(e) {
+        //             console.log(e)
+        //         })
+
+
+
+
+    });
+</script>
+
+<body>
+
+    <div class="demo">
+        <p></p>
+    </div>
+
+
+
+</body>
